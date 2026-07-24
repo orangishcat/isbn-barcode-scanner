@@ -1,12 +1,12 @@
 function normalizeIsbn(raw) {
-  const isbn = raw.replace(/[^0-9X]/gi, '').toUpperCase();
+  const isbn = raw.replace(/[^0-9X]/gi, "").toUpperCase();
 
   if (/^\d{9}[0-9X]$/.test(isbn)) {
     let sum = 0;
     for (let i = 0; i < 9; i++) {
       sum += (10 - i) * parseInt(isbn[i], 10);
     }
-    sum += isbn[9] === 'X' ? 10 : parseInt(isbn[9], 10);
+    sum += isbn[9] === "X" ? 10 : parseInt(isbn[9], 10);
     return sum % 11 === 0 ? isbn : null;
   }
 

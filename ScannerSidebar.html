@@ -1,72 +1,72 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <base target="_top">
-  <link
-    href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
-    rel="stylesheet"
-  >
-  <?!= include('ScannerStyles'); ?>
-</head>
-<body>
-  <h3>Camera</h3>
-  <div id="interactive">
-    <video id="video" autoplay muted playsinline></video>
-    <canvas id="overlay"></canvas>
-  </div>
-  <div id="status">Initializing scanner…</div>
-  <div id="cellStatus">Scanned data will go into the first empty row.</div>
+  <head>
+    <base target="_top" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <?!= include('ScannerStyles'); ?>
+  </head>
+  <body>
+    <h3>Camera</h3>
+    <div id="interactive">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+    </div>
+    <div id="status">Initializing scanner…</div>
+    <div id="cellStatus">Scanned data will go into the first empty row.</div>
 
-  <div id="manual">
-    <input type="text" id="manualInput" placeholder="Enter ISBN manually">
-    <button id="manualBtn">Submit</button>
-  </div>
-
-  <hr>
-
-  <div id="settings">
-    <h3>Settings</h3>
-    <div class="setting-row">
-      <label for="sheetName">Sheet Name:</label>
-      <input id="sheetName" placeholder="e.g. Sheet1">
-    </div>
-    <div class="setting-row">
-      <label for="colDate">Date Column:</label>
-      <input id="colDate" placeholder="e.g. A">
-    </div>
-    <div class="setting-row">
-      <label for="colTitle">Title Column:</label>
-      <input id="colTitle" placeholder="e.g. B">
-    </div>
-    <div class="setting-row">
-      <label for="colAuthor">Author Column:</label>
-      <input id="colAuthor" placeholder="e.g. C">
-    </div>
-    <div class="setting-row">
-      <label for="colPrice">Price Column:</label>
-      <input id="colPrice" placeholder="e.g. D">
-    </div>
-    <div class="setting-row">
-      <label for="colIsbn">ISBN Column:</label>
-      <input id="colIsbn" placeholder="e.g. E">
-    </div>
-    <div class="setting-row">
-      <label for="colAmazonLink">Amazon Link Column:</label>
-      <input id="colAmazonLink" placeholder="e.g. F">
+    <div id="manual">
+      <input type="text" id="manualInput" placeholder="Enter ISBN manually" />
+      <button id="manualBtn">Submit</button>
     </div>
 
-    <button id="saveBtn">Save Settings</button>
-    <div id="saveStatus"></div>
-    <div id="unsavedWarning"></div>
-  </div>
+    <hr />
 
-  <details id="apiErrorDetails" hidden>
-    <summary>Google Books API details</summary>
-    <pre id="apiErrorBody"></pre>
-  </details>
-  <div id="apiKeyStatus">Google Books API key: Checking…</div>
+    <div id="settings">
+      <h3>Settings</h3>
+      <div class="setting-row">
+        <label for="sheetName">Sheet Name:</label>
+        <input id="sheetName" placeholder="e.g. Sheet1" />
+      </div>
+      <div class="setting-row">
+        <label for="colDate">Date Column:</label>
+        <input id="colDate" placeholder="e.g. A" />
+      </div>
+      <div class="setting-row">
+        <label for="colTitle">Title Column:</label>
+        <input id="colTitle" placeholder="e.g. B" />
+      </div>
+      <div class="setting-row">
+        <label for="colAuthor">Author Column:</label>
+        <input id="colAuthor" placeholder="e.g. C" />
+      </div>
+      <div class="setting-row">
+        <label for="colPrice">Price Column:</label>
+        <input id="colPrice" placeholder="e.g. D" />
+      </div>
+      <div class="setting-row">
+        <label for="colIsbn">ISBN Column:</label>
+        <input id="colIsbn" placeholder="e.g. E" />
+      </div>
+      <div class="setting-row">
+        <label for="colAmazonLink">Amazon Link Column:</label>
+        <input id="colAmazonLink" placeholder="e.g. F" />
+      </div>
 
-  <script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
-  <?!= include('ScannerClient'); ?>
-</body>
+      <button id="saveBtn">Save Settings</button>
+      <div id="saveStatus"></div>
+      <div id="unsavedWarning"></div>
+    </div>
+
+    <details id="apiErrorDetails" hidden>
+      <summary>Google Books API details</summary>
+      <pre id="apiErrorBody"></pre>
+    </details>
+    <div id="apiKeyStatus">Google Books API key: Checking…</div>
+
+    <script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
+    <?!= include('ScannerClient'); ?>
+  </body>
 </html>
