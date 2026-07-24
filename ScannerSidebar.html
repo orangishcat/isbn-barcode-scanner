@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <!-- Modern font -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
+        rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      margin: 8px;
+      background: rgb(241,244,249);
+    }
+    h3 {
+      margin: 0 0 8px;
+    }
+    /* Scanner area */
+    #interactive {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: #000;
+    }
+    video, canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    canvas {
+      pointer-events: none;
+      z-index: 2;
+    }
+    /* Status lines */
+    #status, #cellStatus {
+      margin-top: 8px;
+    }
+    /* Manual ISBN entry */
+    #manual {
+      margin-top: 12px;
+    }
+    input, button {
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+      padding: 4px 8px;
+    }
+    /* Separator */
+    hr {
+      margin: 16px 0;
+      border: none;
+      border-top: 1px solid #ccc;
+    }
+    /* Settings panel */
+    #settings h3 {
+      margin-top: 0;
+    }
+    .setting-row {
+      display: flex;
+      align-items: center;
+      margin: 6px 0;
+    }
+    .setting-row label {
+      flex: 0 0 120px;      /* fixed width */
+      margin-right: 8px;
+    }
+    .setting-row input {
+      flex: 1 1 auto;
+      width: 50px;
+    }
+    #saveBtn {
+      margin-top: 12px;
+    }
+    #saveStatus {
+      color: green;
+      margin-top: 4px;
+      height: 1em;
+    }
+    #unsavedWarning {
+      color: #d95f02;
+      margin-top: 4px;
+      height: 1em;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <h3>Camera</h3>
+  <div id="interactive">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div id="status">Initializing scanner…</div>
+  <div id="cellStatus">Scanned data will go into the first empty row.</div>
+
+  <!-- Manual ISBN entry -->
+  <div id="manual">
+    <input type="text" id="manualInput" placeholder="Enter ISBN manually">
+    <button id="manualBtn">Submit</button>
+  </div>
+
+  <hr>
+
+  <!-- Settings panel -->
+  <div id="settings">
+    <h3>Settings</h3>
+    <div class="setting-row">
+      <label for="sheetName">Sheet Name:</label>
+      <input id="sheetName" placeholder="e.g. Sheet1">
+    </div>
+    <div class="setting-row">
+      <label for="colDate">Date Column:</label>
+      <input id="colDate" placeholder="e.g. A">
+    </div>
+    <div class="setting-row">
+      <label for="colTitle">Title Column:</label>
+      <input id="colTitle" placeholder="e.g. B">
+    </div>
+    <div class="setting-row">
+      <label for="colAuthor">Author Column:</label>
+      <input id="colAuthor" placeholder="e.g. C">
+    </div>
+    <div class="setting-row">
+      <label for="colPrice">Price Column:</label>
+      <input id="colPrice" placeholder="e.g. D">
+    </div>
+    <div class="setting-row">
+      <label for="colIsbn">ISBN Column:</label>
+      <input id="colIsbn" placeholder="e.g. E">
+    </div>
+    <div class="setting-row">
+      <label for="colAmazonLink">Amazon Link Column:</label>
+      <input id="colAmazonLink" placeholder="e.g. F">
+    </div>
+
+    <button id="saveBtn">Save Settings</button>
+    <div id="saveStatus"></div>
+    <div id="unsavedWarning"></div>
+  </div>
+
+  <script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
+  <script>
+    const statusEl    = document.getElementById('status');
+    const cellEl      = document.getElementById('cellStatus');
+    const saveSt      = document.getElementById('saveStatus');
+    const unsavedWarn = document.getElementById('unsavedWarning');
+    const videoEl     = document.getElementById('video');
+    const overlay     = document.getElementById('overlay');
+    let reader, unsaved = false;
+
+    // Load existing config into inputs
+    google.script.run
+      .withSuccessHandler(cfg => {
+        document.getElementById('sheetName').value     = cfg.sheetName;
+        document.getElementById('colDate').value       = cfg.COLS.date;
+        document.getElementById('colTitle').value      = cfg.COLS.title;
+        document.getElementById('colAuthor').value     = cfg.COLS.author;
+        document.getElementById('colPrice').value      = cfg.COLS.price;
+        document.getElementById('colIsbn').value       = cfg.COLS.isbn;
+        document.getElementById('colAmazonLink').value = cfg.COLS.amazon_link;
+      })
+      .getConfig();
+
+    // Check if any column input is out of A–L range
+    function checkColumnRange() {
+      const rows = document.querySelectorAll('#settings .setting-row');
+      for (let row of rows) {
+        const inp = row.querySelector('input');
+        const label = row.querySelector('label').innerText.replace(' Column:','');
+        const v = inp.value.trim().toUpperCase();
+        if (/^[A-Z]$/.test(v) && v > 'L') {
+          return `⚠️ ${label} column "${v}" out of range (A–L)`;
+        }
+      }
+      return null;
+    }
+
+    // Mark settings as unsaved or show range warning
+    document.querySelectorAll('#settings input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const rangeWarn = checkColumnRange();
+        if (rangeWarn) {
+          unsavedWarn.textContent = rangeWarn;
+        } else if (!unsaved) {
+          unsaved = true;
+          unsavedWarn.textContent = '⚠️ You have unsaved changes';
+        }
+      });
+    });
+
+    // Save settings back to server (always allowed)
+    document.getElementById('saveBtn').addEventListener('click', () => {
+      const cfg = {
+        sheetName: document.getElementById('sheetName').value.trim(),
+        COLS: {
+          date:        document.getElementById('colDate').value.trim(),
+          title:       document.getElementById('colTitle').value.trim(),
+          author:      document.getElementById('colAuthor').value.trim(),
+          price:       document.getElementById('colPrice').value.trim(),
+          isbn:        document.getElementById('colIsbn').value.trim(),
+          amazon_link: document.getElementById('colAmazonLink').value.trim()
+        }
+      };
+      saveSt.textContent = '';
+      google.script.run.withSuccessHandler(() => {
+        saveSt.textContent = 'Settings saved!';
+        unsavedWarn.textContent = '';
+        unsaved = false;
+        setTimeout(() => saveSt.textContent = '', 3000);
+      }).saveConfig(cfg);
+    });
+
+    // Prepare and draw debug overlay
+    function prepareOverlay() {
+      const r = videoEl.getBoundingClientRect();
+      overlay.width  = r.width;
+      overlay.height = r.height;
+    }
+    function drawOverlay(result) {
+      const ctx = overlay.getContext('2d');
+      ctx.clearRect(0,0,overlay.width,overlay.height);
+      if (!result) return;
+      const pts = result.getResultPoints?.() || [];
+      if (!pts.length) return;
+      ctx.strokeStyle = 'red'; ctx.lineWidth = 4;
+      ctx.beginPath();
+      pts.forEach((p,i) => {
+        const x = p.getX()/videoEl.videoWidth * overlay.width;
+        const y = p.getY()/videoEl.videoHeight * overlay.height;
+        i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      });
+      ctx.closePath(); ctx.stroke();
+    }
+
+    // Start ZXing scanner
+    function startScanner() {
+      statusEl.textContent = 'Requesting camera access…';
+      reader = new ZXing.BrowserMultiFormatReader();
+      reader.listVideoInputDevices()
+        .then(devices => {
+          const back = devices.find(d=>/back|rear/i.test(d.label))||devices[0];
+          videoEl.addEventListener('loadedmetadata', prepareOverlay);
+          return reader.decodeFromVideoDevice(back.deviceId, videoEl, (result, err) => {
+            drawOverlay(result);
+            if (result) handleResult(result.getText());
+          });
+        })
+        .then(() => statusEl.textContent = 'Point camera at barcode…')
+        .catch(e => {
+          console.error(e);
+          statusEl.textContent = '❌ Cannot access camera';
+        });
+    }
+    function stopScanner() {
+      reader?.reset();
+      reader = null;
+    }
+
+    // Handle scan or manual result
+    function handleResult(raw) {
+      stopScanner();
+      statusEl.textContent = 'Processing…';
+      google.script.run.withSuccessHandler(res => {
+        switch (res.status) {
+          case 'spreadsheet-not-saved':
+            // show friendly sheet-error with tooltip
+            statusEl.innerHTML =
+              '⚠️ Sheet error: Make sure you have saved your spreadsheet by renaming it';
+            break;
+          case 'not-an-isbn':
+            statusEl.textContent = '🔴 Invalid ISBN'; break;
+          case 'not-found':
+            statusEl.textContent = '⚠️ ISBN not found'; break;
+          case 'error':
+            statusEl.textContent = `⚠️ ${res.message}`; break;
+          case 'ok':
+            statusEl.textContent = '✅ Book added'; break;
+        }
+        setTimeout(() => {
+          overlay.getContext('2d').clearRect(0,0,overlay.width,overlay.height);
+          startScanner();
+        }, 2000);
+      }).setScannedValue(raw);
+    }
+
+    // Manual submit
+    document.getElementById('manualBtn').addEventListener('click', () => {
+      const v = document.getElementById('manualInput').value.trim();
+      if (v) handleResult(v);
+    });
+    document.getElementById('manualInput').addEventListener('keypress', e => {
+      if (e.key === 'Enter') handleResult(e.target.value.trim());
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      statusEl.textContent = 'Initializing…';
+      startScanner();
+    });
+  </script>
+</body>
+</html>
