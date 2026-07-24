@@ -60,6 +60,12 @@
     <div id="unsavedWarning"></div>
   </div>
 
+  <details id="apiErrorDetails" hidden>
+    <summary>Google Books API details</summary>
+    <pre id="apiErrorBody"></pre>
+  </details>
+  <div id="apiKeyStatus">Google Books API key: Checking…</div>
+
   <script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
   <?!= include('ScannerClient'); ?>
 </body>

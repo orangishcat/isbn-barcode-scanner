@@ -11,6 +11,10 @@
     "https://www.googleapis.com/auth/script.container.ui"
   ],
   "addOns": {
+    "common": {
+      "name": "ISBN Barcode Scanner",
+      "logoUrl": "https://raw.githubusercontent.com/orangishcat/isbn-barcode-scanner/main/barcode.png"
+    },
     "sheets": {
       "homepageTrigger": {
         "runFunction": "onHomepage"

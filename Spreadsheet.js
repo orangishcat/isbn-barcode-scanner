@@ -67,22 +67,23 @@ function setScannedValue(rawValue) {
     const isbnColumn = letterToColumn(config.COLS.isbn);
     const row = findFirstEmptyRow(sheet, isbnColumn);
     sheet.getRange(row, isbnColumn).setValue(isbn);
+    sheet
+      .getRange(row, letterToColumn(config.COLS.amazon_link))
+      .setFormula(
+        `=HYPERLINK("https://www.amazon.com/s?k=${isbn}","Search Amazon")`
+      );
 
-    const book = fetchBookInfo(isbn);
-    if (!book) {
-      return { status: 'not-found' };
+    const lookup = fetchBookInfo(isbn);
+    if (!lookup.book) {
+      return { status: 'not-found', details: lookup.error };
     }
+    const book = lookup.book;
 
     sheet.getRange(row, letterToColumn(config.COLS.title)).setValue(book.title);
     sheet
       .getRange(row, letterToColumn(config.COLS.author))
       .setValue(book.authors);
     sheet.getRange(row, letterToColumn(config.COLS.price)).setValue(book.price);
-    sheet
-      .getRange(row, letterToColumn(config.COLS.amazon_link))
-      .setFormula(
-        `=HYPERLINK("https://www.amazon.com/s?k=${isbn}","Search Amazon")`
-      );
     sheet.getRange(row, letterToColumn(config.COLS.date)).setValue(new Date());
 
     return { status: 'ok' };

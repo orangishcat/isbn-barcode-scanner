@@ -4,6 +4,9 @@
     cellStatus: document.getElementById('cellStatus'),
     saveStatus: document.getElementById('saveStatus'),
     unsavedWarning: document.getElementById('unsavedWarning'),
+    apiErrorDetails: document.getElementById('apiErrorDetails'),
+    apiErrorBody: document.getElementById('apiErrorBody'),
+    apiKeyStatus: document.getElementById('apiKeyStatus'),
     video: document.getElementById('video'),
     overlay: document.getElementById('overlay'),
     manualInput: document.getElementById('manualInput')
@@ -36,6 +39,20 @@
       })
       .withFailureHandler(showError)
       .getConfig();
+  }
+
+  function loadApiKeyStatus() {
+    google.script.run
+      .withSuccessHandler(hasApiKey => {
+        elements.apiKeyStatus.textContent = hasApiKey
+          ? 'Google Books API key: Configured'
+          : 'Google Books API key: Not configured';
+      })
+      .withFailureHandler(() => {
+        elements.apiKeyStatus.textContent =
+          'Google Books API key: Unable to check';
+      })
+      .hasBooksApiKey();
   }
 
   function getColumnWarning() {
@@ -168,6 +185,16 @@
     };
     elements.status.textContent =
       messages[result.status] || `⚠️ ${result.message || 'Unexpected error'}`;
+
+    if (result.status === 'not-found') {
+      elements.apiErrorBody.textContent =
+        result.details || 'No response details were returned.';
+      elements.apiErrorDetails.hidden = false;
+    } else {
+      elements.apiErrorBody.textContent = '';
+      elements.apiErrorDetails.hidden = true;
+      elements.apiErrorDetails.open = false;
+    }
   }
 
   function handleResult(rawValue) {
@@ -210,6 +237,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     elements.status.textContent = 'Initializing…';
     loadConfig();
+    loadApiKeyStatus();
     startScanner();
   });
 </script>

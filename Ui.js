@@ -26,7 +26,12 @@ function onHomepage() {
 
 function openScannerFromCard() {
   openScanner();
-  return CardService.newActionResponseBuilder().build();
+  const notification = CardService.newNotification()
+    .setText('Scanner opened');
+
+  return CardService.newActionResponseBuilder()
+    .setNotification(notification)
+    .build();
 }
 
 function openScanner() {
