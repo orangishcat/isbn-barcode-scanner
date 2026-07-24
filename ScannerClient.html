@@ -1,0 +1,215 @@
+<script>
+  const elements = {
+    status: document.getElementById('status'),
+    cellStatus: document.getElementById('cellStatus'),
+    saveStatus: document.getElementById('saveStatus'),
+    unsavedWarning: document.getElementById('unsavedWarning'),
+    video: document.getElementById('video'),
+    overlay: document.getElementById('overlay'),
+    manualInput: document.getElementById('manualInput')
+  };
+
+  const configInputs = {
+    sheetName: document.getElementById('sheetName'),
+    date: document.getElementById('colDate'),
+    title: document.getElementById('colTitle'),
+    author: document.getElementById('colAuthor'),
+    price: document.getElementById('colPrice'),
+    isbn: document.getElementById('colIsbn'),
+    amazon_link: document.getElementById('colAmazonLink')
+  };
+
+  let reader = null;
+  let unsaved = false;
+
+  function showError(error) {
+    elements.status.textContent = `⚠️ ${error.message || error}`;
+  }
+
+  function loadConfig() {
+    google.script.run
+      .withSuccessHandler(config => {
+        configInputs.sheetName.value = config.sheetName;
+        Object.keys(config.COLS).forEach(name => {
+          configInputs[name].value = config.COLS[name];
+        });
+      })
+      .withFailureHandler(showError)
+      .getConfig();
+  }
+
+  function getColumnWarning() {
+    for (const [name, input] of Object.entries(configInputs)) {
+      if (name === 'sheetName') {
+        continue;
+      }
+      const value = input.value.trim().toUpperCase();
+      if (/^[A-Z]$/.test(value) && value > 'L') {
+        return `⚠️ ${name} column "${value}" out of range (A–L)`;
+      }
+    }
+    return null;
+  }
+
+  function markConfigUnsaved() {
+    unsaved = true;
+    elements.unsavedWarning.textContent =
+      getColumnWarning() || '⚠️ You have unsaved changes';
+  }
+
+  function readConfig() {
+    return {
+      sheetName: configInputs.sheetName.value.trim(),
+      COLS: Object.fromEntries(
+        Object.entries(configInputs)
+          .filter(([name]) => name !== 'sheetName')
+          .map(([name, input]) => [name, input.value.trim().toUpperCase()])
+      )
+    };
+  }
+
+  function saveConfig() {
+    elements.saveStatus.textContent = '';
+    google.script.run
+      .withSuccessHandler(() => {
+        elements.saveStatus.textContent = 'Settings saved!';
+        elements.unsavedWarning.textContent = '';
+        unsaved = false;
+        setTimeout(() => {
+          elements.saveStatus.textContent = '';
+        }, 3000);
+      })
+      .withFailureHandler(showError)
+      .saveConfig(readConfig());
+  }
+
+  function prepareOverlay() {
+    const bounds = elements.video.getBoundingClientRect();
+    elements.overlay.width = bounds.width;
+    elements.overlay.height = bounds.height;
+  }
+
+  function drawOverlay(result) {
+    const context = elements.overlay.getContext('2d');
+    context.clearRect(
+      0,
+      0,
+      elements.overlay.width,
+      elements.overlay.height
+    );
+    if (!result) {
+      return;
+    }
+
+    const points = result.getResultPoints?.() || [];
+    if (points.length === 0) {
+      return;
+    }
+
+    context.strokeStyle = 'red';
+    context.lineWidth = 4;
+    context.beginPath();
+    points.forEach((point, index) => {
+      const x =
+        (point.getX() / elements.video.videoWidth) * elements.overlay.width;
+      const y =
+        (point.getY() / elements.video.videoHeight) * elements.overlay.height;
+      if (index === 0) {
+        context.moveTo(x, y);
+      } else {
+        context.lineTo(x, y);
+      }
+    });
+    context.closePath();
+    context.stroke();
+  }
+
+  function startScanner() {
+    elements.status.textContent = 'Requesting camera access…';
+    reader = new ZXing.BrowserMultiFormatReader();
+    reader
+      .listVideoInputDevices()
+      .then(devices => {
+        const camera =
+          devices.find(device => /back|rear/i.test(device.label)) || devices[0];
+        elements.video.addEventListener('loadedmetadata', prepareOverlay);
+        return reader.decodeFromVideoDevice(
+          camera.deviceId,
+          elements.video,
+          result => {
+            drawOverlay(result);
+            if (result) {
+              handleResult(result.getText());
+            }
+          }
+        );
+      })
+      .then(() => {
+        elements.status.textContent = 'Point camera at barcode…';
+      })
+      .catch(error => {
+        console.error(error);
+        elements.status.textContent = '❌ Cannot access camera';
+      });
+  }
+
+  function stopScanner() {
+    reader?.reset();
+    reader = null;
+  }
+
+  function showScanResult(result) {
+    const messages = {
+      'spreadsheet-not-saved':
+        '⚠️ Sheet error: Save the spreadsheet by giving it a name',
+      'not-an-isbn': '🔴 Invalid ISBN',
+      'not-found': '⚠️ ISBN not found',
+      ok: '✅ Book added'
+    };
+    elements.status.textContent =
+      messages[result.status] || `⚠️ ${result.message || 'Unexpected error'}`;
+  }
+
+  function handleResult(rawValue) {
+    if (!rawValue) {
+      return;
+    }
+
+    stopScanner();
+    elements.status.textContent = 'Processing…';
+    google.script.run
+      .withSuccessHandler(result => {
+        showScanResult(result);
+        setTimeout(() => {
+          const context = elements.overlay.getContext('2d');
+          context.clearRect(
+            0,
+            0,
+            elements.overlay.width,
+            elements.overlay.height
+          );
+          startScanner();
+        }, 2000);
+      })
+      .withFailureHandler(showError)
+      .setScannedValue(rawValue);
+  }
+
+  Object.values(configInputs).forEach(input => {
+    input.addEventListener('input', markConfigUnsaved);
+  });
+  document.getElementById('saveBtn').addEventListener('click', saveConfig);
+  document.getElementById('manualBtn').addEventListener('click', () => {
+    handleResult(elements.manualInput.value.trim());
+  });
+  elements.manualInput.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      handleResult(event.target.value.trim());
+    }
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+    elements.status.textContent = 'Initializing…';
+    loadConfig();
+    startScanner();
+  });
+</script>
